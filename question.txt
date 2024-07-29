@@ -1,15 +1,13 @@
 Using spatial datasets found here: https://croplandcros.scinet.usda.gov/ complete the following
-tasks in R or Python. This dataset using Landsat to categorize land cover into specific crop
+tasks in R or Python. This dataset uses Landsat to categorize land cover into specific crop
 categories. However, the categorization is unreliable in several areas.
-1. Select an area of interest (e.g. Idaho state boundary), preferably using another spatial/polygon
+1. Select an area of interest (e.g., Idaho state boundary), preferably using another spatial/polygon
 data source, like US Census Tiger files.
 2. Create a reasonable algorithm that identifies field boundaries and cleans up obvious errors in the
 remote-sensed data raster data (see below).
 ￼
-This figure is an example of remote sensed and classified field data. Notice that fields and crop
-circles have many pixels that are incorrectly classified, since fields are generally planted with a
+This figure is an example of remotely sensed and classified field data. Notice that fields and crop
+circles have many pixels that are incorrectly classified since fields are generally planted with a
 single crop (though crop circles may be divided). Pixels represent 30x30m grids.
 3. Create a cleaned (easily readable) spatial dataset with the appropriate key for all pixels at the
 same projection and coordinate system.
-
-How to solve these types of problem?
