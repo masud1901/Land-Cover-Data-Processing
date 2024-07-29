@@ -1,0 +1,14 @@
+clipped.tfw
+clipped.TIF
+clipped.TIF.aux.xml
+clipped.TIF.ovr
+clipped.TIF.vat.cpg
+clipped.TIF.vat.dbf
+clipped.TIF.xml
+tl_rd22_47075_edges.cpg
+tl_rd22_47075_edges.dbf
+tl_rd22_47075_edges.prj
+tl_rd22_47075_edges.shp
+tl_rd22_47075_edges.shp.ea.iso.xml
+tl_rd22_47075_edges.shp.iso.xml
+tl_rd22_47075_edges.shx
