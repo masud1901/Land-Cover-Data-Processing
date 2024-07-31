@@ -159,7 +159,7 @@ def visualize_results(original, segments, cleaned, smoothed, output_path):
 def main():
     try:
         # Load and prepare data
-        vector_data = load_vector_data("data/tl_rd22_47075_edges.shp")
+        # vector_data = load_vector_data("data/tl_rd22_47075_edges.shp")
         raster_data, raster_transform, metadata = load_raster_data("data/clipped.TIF")
 
         # Process data
