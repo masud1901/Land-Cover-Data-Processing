@@ -1,7 +1,11 @@
 import os
 import logging
 import numpy as np
-import rasterio
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import warnings
+
 from rasterio.errors import RasterioIOError
 from sklearn.metrics import (
     confusion_matrix,
@@ -11,58 +15,47 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 from sklearn.exceptions import UndefinedMetricWarning
-import warnings
+from utils import load_raster_data, safe_metric_calculation
 
-# Filter out the specific warning
 warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
 
-# Set up logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# Hardcoded file paths
 RASTER_FILE = "data/clipped.TIF"
 CLEANED_SMOOTHED_FILE = "result/cleaned_smoothed_landcover.tif"
 OUTPUT_DIR = "result"
 
 
-def load_raster_data(filepath):
-    """Load raster data and return the data and metadata."""
-    logging.info(f"Loading raster data from {filepath}")
-    with rasterio.open(filepath) as src:
-        data = src.read(1)
-        metadata = src.meta
-    return data, metadata
+def calculate_accuracy(original_data: np.ndarray, processed_data: np.ndarray) -> dict:
+    """
+    Calculate accuracy metrics for the processed raster data.
 
-
-def safe_metric_calculation(metric_func, true_labels, pred_labels):
-    """Safely calculate a metric, returning 0 if there's an error."""
-    try:
-        return metric_func(true_labels, pred_labels, zero_division=0)
-    except Exception as e:
-        logging.warning(f"Error calculating metric: {str(e)}. Returning 0.")
-        return 0
-
-
-def calculate_accuracy(original_data, processed_data):
-    """Calculate comprehensive accuracy metrics comparing processed data with the original data."""
+    :param original_data: Original raster data.
+    :param processed_data: Processed raster data.
+    :return: Dictionary containing various accuracy metrics.
+    """
     logging.info("Calculating accuracy metrics")
     original_data_flat = original_data.flatten()
     processed_data_flat = processed_data.flatten()
 
-    conf_matrix = confusion_matrix(original_data_flat, processed_data_flat)
+    original_classes = set(np.unique(original_data_flat))
+    processed_classes = set(np.unique(processed_data_flat))
+    valid_classes = sorted(list(original_classes.intersection(processed_classes)))
+
+    if 0 in valid_classes:
+        valid_classes.remove(0)
+
+    conf_matrix = confusion_matrix(
+        original_data_flat, processed_data_flat, labels=valid_classes
+    )
     overall_acc = accuracy_score(original_data_flat, processed_data_flat)
     kappa = cohen_kappa_score(original_data_flat, processed_data_flat)
 
-    # Calculate per-class metrics
-    classes = np.unique(np.concatenate((original_data_flat, processed_data_flat)))
     per_class_metrics = {}
-    for cls in classes:
+    for cls in valid_classes:
         per_class_metrics[cls] = {
             "precision": safe_metric_calculation(
                 precision_score, original_data_flat == cls, processed_data_flat == cls
@@ -80,17 +73,56 @@ def calculate_accuracy(original_data, processed_data):
         "overall_accuracy": overall_acc,
         "kappa": kappa,
         "per_class_metrics": per_class_metrics,
+        "valid_classes": valid_classes,
     }
 
 
-def plot_confusion_matrix(conf_matrix, output_path):
-    """Plot and save the confusion matrix."""
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues")
-    plt.title("Confusion Matrix")
-    plt.ylabel("True Label")
-    plt.xlabel("Predicted Label")
-    plt.savefig(output_path)
+def plot_confusion_matrix(
+    conf_matrix: np.ndarray, valid_classes: list, output_path: str
+):
+    """
+    Plot and save the confusion matrix.
+
+    :param conf_matrix: Confusion matrix.
+    :param valid_classes: List of valid classes.
+    :param output_path: Path to save the plot.
+    """
+    plt.figure(figsize=(15, 15))
+
+    row_sums = conf_matrix.sum(axis=1)
+    conf_matrix_norm = np.divide(
+        conf_matrix.astype("float"),
+        row_sums[:, np.newaxis],
+        where=row_sums[:, np.newaxis] != 0,
+        out=np.zeros_like(conf_matrix, dtype=float),
+    )
+
+    heatmap = sns.heatmap(
+        conf_matrix_norm,
+        annot=conf_matrix,
+        fmt="d",
+        cmap="Blues",
+        square=True,
+        cbar=False,
+    )
+
+    plt.title("Confusion Matrix", fontsize=16)
+    plt.ylabel("True Label", fontsize=14)
+    plt.xlabel("Predicted Label", fontsize=14)
+
+    plt.xticks(
+        np.arange(len(valid_classes)) + 0.5, valid_classes, rotation=45, ha="right"
+    )
+    plt.yticks(np.arange(len(valid_classes)) + 0.5, valid_classes, rotation=0)
+
+    plt.tick_params(labelsize=12)
+
+    cbar = plt.colorbar(heatmap.collections[0], shrink=0.8)
+    cbar.set_label("Normalized Frequency", fontsize=12)
+    cbar.ax.tick_params(labelsize=10)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close()
 
 
@@ -128,10 +160,17 @@ def main():
         accuracy_df.to_csv(csv_path, index=False)
         logging.info(f"Accuracy metrics saved to {csv_path}")
 
-        # Plot and save confusion matrix
-        cm_path = os.path.join(OUTPUT_DIR, "confusion_matrix.png")
-        plot_confusion_matrix(accuracy_metrics["confusion_matrix"], cm_path)
-        logging.info(f"Confusion matrix plot saved to {cm_path}")
+        # Plot and save confusion matrix if there are valid classes
+        if accuracy_metrics["valid_classes"]:
+            cm_path = os.path.join(OUTPUT_DIR, "confusion_matrix.png")
+            plot_confusion_matrix(
+                accuracy_metrics["confusion_matrix"],
+                accuracy_metrics["valid_classes"],
+                cm_path,
+            )
+            logging.info(f"Confusion matrix plot saved to {cm_path}")
+        else:
+            logging.warning("No valid classes found. Skipping confusion matrix plot.")
 
     except FileNotFoundError as fnf_error:
         logging.error(f"File not found: {fnf_error}")
